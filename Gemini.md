@@ -16,6 +16,7 @@ src/index.js
 
 ```
 ├── .env
+├── .gitignore
 ├── .prettierrc
 ├── dist
 │   └── gemini-cli-context.cjs

@@ -1,7 +1,12 @@
 {
   "name": "@involvex/gemini-cli-context",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "updates Gemini.md files for Gemini-cli .",
+  "homepage": "https://github.com/involvex/gemini-cli-context",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/involvex/gemini-cli-context.git"
+  },
   "keywords": [
     "gemini",
     "ai",
@@ -11,7 +16,7 @@
   "author": "Involvex",
   "main": "src/index.js",
   "bin": {
-    "gemini-cli-context": "dist/gemini-cli-context.js"
+    "gemini-cli-context": "dist/gemini-cli-context.cjs"
   },
   "type": "module",
   "scripts": {
@@ -21,7 +26,7 @@
     "format:check": "prettier --check .",
     "format": "prettier --write .",
     "prebuild": "if not exist dist mkdir dist",
-    "build": "esbuild src/index.js --bundle --platform=node --outfile=dist/gemini-cli-context.cjs"
+    "build": "esbuild src/index.js --bundle --platform=node --banner:js=\"#!/usr/bin/env node\" --outfile=dist/gemini-cli-context.cjs"
   },
   "license": "MIT",
   "dependencies": {
