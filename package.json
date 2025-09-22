@@ -26,7 +26,9 @@
     "format:check": "prettier --check .",
     "format": "prettier --write .",
     "prebuild": "if not exist dist mkdir dist",
-    "build": "esbuild src/index.js --bundle --platform=node --banner:js=\"#!/usr/bin/env node\" --outfile=dist/gemini-cli-context.cjs"
+    "build": "esbuild src/index.js --bundle --platform=node --banner:js=\"#!/usr/bin/env node\" --outfile=dist/gemini-cli-context.cjs",
+    "bundle": "repomix",
+    "postbundle": "echo 'Project bundled into a single file using repomix. You can find the output in the project root.'"
   },
   "license": "MIT",
   "dependencies": {
@@ -39,6 +41,7 @@
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^9.1.2",
     "globals": "^15.15.0",
-    "prettier": "^3.6.2"
+    "prettier": "^3.6.2",
+    "repomix": "^1.6.0"
   }
 }

@@ -2,19 +2,7 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import readline from 'readline';
 import { exec } from 'child_process';
-
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
-
-function question(query) {
-  return new Promise(resolve => {
-    rl.question(query, resolve);
-  });
-}
 
 const IGNORED_DIRS = ['node_modules', '.git', '.vscode'];
 
@@ -154,61 +142,35 @@ async function updateProjectContext() {
 
   const analysis = await analyzeProject();
   if (!analysis) {
-    rl.close();
     return;
   }
 
   const projectStructure = await getProjectStructure(rootDir);
 
-  const userClarification = await question(
-    `
-This is the project description from package.json: "${analysis.projectDescription}"
-Please provide a more detailed description or press Enter to keep this one:
-`
-  );
-  const description = userClarification || analysis.projectDescription;
-
-  const newAnalysisMarkdownContent = generateAnalysisMarkdown(analysis, description, projectStructure);
-  let existingGeminiMdContent = '';
+  let repomixContent = '';
   try {
-    existingGeminiMdContent = await fs.readFile(outputFilePath, 'utf-8');
+    repomixContent = await fs.readFile(path.join(rootDir, 'repomix-output.xml'), 'utf-8');
   } catch (error) {
-    // If file doesn't exist, treat as empty
-    console.log(`${outputFilename} not found, creating a new one.`);
+    console.log('repomix-output.xml not found. Run `npm run bundle` to generate it.');
   }
 
-  // Define the sections to be updated in Gemini.md
-  const sectionsToUpdateGemini = {
-    '## 1. Project Overview': newAnalysisMarkdownContent.match(/## 1\. Project Overview[\s\S]*?(?=## \d\.|\Z)/s)?.[0] || '',
-    '## 2. AI Models Used': newAnalysisMarkdownContent.match(/## 2\. AI Models Used[\s\S]*?(?=## \d\.|\Z)/s)?.[0] || '',
-    '## 3. Project Structure': newAnalysisMarkdownContent.match(/## 3\. Project Structure[\s\S]*?(?=## \d\.|\Z)/s)?.[0] || '',
-    '## 4. Scripts': newAnalysisMarkdownContent.match(/## 4\. Scripts[\s\S]*?(?=## \d\.|\Z)/s)?.[0] || '',
-    '## 5. Dependencies': newAnalysisMarkdownContent.match(/## 5\. Dependencies[\s\S]*?(?=## \d\.|\Z)/s)?.[0] || '',
-    '## 6. Recommendations': newAnalysisMarkdownContent.match(/## 6\. Recommendations[\s\S]*?(?=## \d\.|\Z)/s)?.[0] || '',
-    '## 7. Suggested TODO List': newAnalysisMarkdownContent.match(/## 7\. Suggested TODO List[\s\S]*?(?=## \d\.|\Z)/s)?.[0] || '',
-  };
+  console.log(`
+This is the project description from package.json: "${analysis.projectDescription}"
+Please provide a more detailed description or press Enter to keep this one:`);
+  const userClarification = await new Promise(resolve => process.stdin.once('data', resolve));
 
-  let updatedGeminiMdContent = existingGeminiMdContent;
-  if (!existingGeminiMdContent.includes('# Project Context for Gemini')) {
-    updatedGeminiMdContent = `# Project Context for Gemini\n\n${newAnalysisMarkdownContent}`;
-  } else {
-    for (const sectionTitle in sectionsToUpdateGemini) {
-      const newSectionContent = sectionsToUpdateGemini[sectionTitle];
-      const sectionRegex = new RegExp(`${sectionTitle}[\\s\\S]*?(?=(## \\d\\.|Z))`, 's'); // Fixed \Z
-      if (updatedGeminiMdContent.match(sectionRegex)) {
-        updatedGeminiMdContent = updatedGeminiMdContent.replace(sectionRegex, newSectionContent);
-      } else if (newSectionContent) {
-        // If section doesn't exist, append it
-        updatedGeminiMdContent += `\n\n${newSectionContent}`;
-      }
-    }
-  }
+  const description = userClarification.toString().trim() || analysis.projectDescription;
 
-  await fs.writeFile(outputFilePath, updatedGeminiMdContent);
+  const newAnalysisMarkdownContent = generateAnalysisMarkdown(analysis, description, projectStructure, repomixContent);
+
+  // Always overwrite the Gemini.md file with the new content
+  await fs.writeFile(outputFilePath, newAnalysisMarkdownContent);
   console.log(`\n✅ ${outputFilename} has been successfully updated with a detailed analysis!`);
 
-  const createReadme = await question('\nDo you want to generate or update the README.md file as well? (y/n) ');
-  if (createReadme.toLowerCase() === 'y') {
+  console.log('\nDo you want to generate or update the README.md file as well? (y/n) ');
+  const createReadme = await new Promise(resolve => process.stdin.once('data', resolve));
+
+  if (createReadme.toString().trim().toLowerCase() === 'y') {
     const readmePath = path.join(rootDir, 'README.md');
     const newReadmeContent = generateReadmeContent(analysis, description, projectStructure);
     let existingReadmeContent = '';
@@ -220,14 +182,14 @@ Please provide a more detailed description or press Enter to keep this one:
 
     // Define the sections to be updated in README.md
     const sectionsToUpdateReadme = {
-      '## Getting Started': newReadmeContent.match(/## Getting Started[\s\S]*?(?=## AI Models Used|## Usage|## Configuration|## Contributing|## License|Z)/s)?.[0] || '',
-      '## Project Structure': newReadmeContent.match(/## Project Structure[\s\S]*?(?=### Available Scripts|## AI Models Used|## Usage|## Configuration|## Contributing|## License|Z)/s)?.[0] || '',
-      '### Available Scripts': newReadmeContent.match(/### Available Scripts[\s\S]*?(?=## AI Models Used|## Usage|## Configuration|## Contributing|## License|Z)/s)?.[0] || '',
-      '## AI Models Used': newReadmeContent.match(/## AI Models Used[\s\S]*?(?=## Usage|## Configuration|## Contributing|## License|Z)/s)?.[0] || '',
-      '## Usage': newReadmeContent.match(/## Usage[\s\S]*?(?=## Configuration|## Contributing|## License|Z)/s)?.[0] || '',
-      '## Configuration': newReadmeContent.match(/## Configuration[\s\S]*?(?=## Contributing|## License|Z)/s)?.[0] || '',
-      '## Contributing': newReadmeContent.match(/## Contributing[\s\S]*?(?=## License|Z)/s)?.[0] || '',
-      '## License': newReadmeContent.match(/## License[\s\S]*?(?=Z)/s)?.[0] || '',
+      '## Getting Started': newReadmeContent.match(/## Getting Started[\s\S]*?(?=## AI Models Used|## Usage|## Configuration|## Contributing|## License|$)/s)?.[0] || '',
+      '## Project Structure': newReadmeContent.match(/## Project Structure[\s\S]*?(?=### Available Scripts|## AI Models Used|## Usage|## Configuration|## Contributing|## License|$)/s)?.[0] || '',
+      '### Available Scripts': newReadmeContent.match(/### Available Scripts[\s\S]*?(?=## AI Models Used|## Usage|## Configuration|## Contributing|## License|$)/s)?.[0] || '',
+      '## AI Models Used': newReadmeContent.match(/## AI Models Used[\s\S]*?(?=## Usage|## Configuration|## Contributing|## License|$)/s)?.[0] || '',
+      '## Usage': newReadmeContent.match(/## Usage[\s\S]*?(?=## Configuration|## Contributing|## License|$)/s)?.[0] || '',
+      '## Configuration': newReadmeContent.match(/## Configuration[\s\S]*?(?=## Contributing|## License|$)/s)?.[0] || '',
+      '## Contributing': newReadmeContent.match(/## Contributing[\s\S]*?(?=## License|$)/s)?.[0] || '',
+      '## License': newReadmeContent.match(/## License[\s\S]*?(?=$)/s)?.[0] || '',
     };
 
     let updatedReadmeContent = existingReadmeContent;
@@ -235,7 +197,7 @@ Please provide a more detailed description or press Enter to keep this one:
       updatedReadmeContent = newReadmeContent; // If no existing project name, overwrite
     } else {
       // Update description separately as it's at the top
-      const descriptionRegex = new RegExp(`^# ${analysis.projectName}\\n([\\s\\S]*?)(?=\\n##)`, 's');
+      const descriptionRegex = new RegExp(`^# ${analysis.projectName}\n([\s\S]*?)(?=\n##)`, 's');
       const newDescription = newReadmeContent.match(descriptionRegex)?.[1] || '';
       if (updatedReadmeContent.match(descriptionRegex)) {
         updatedReadmeContent = updatedReadmeContent.replace(descriptionRegex, `# ${analysis.projectName}\n${newDescription}`);
@@ -245,7 +207,7 @@ Please provide a more detailed description or press Enter to keep this one:
 
       for (const sectionTitle in sectionsToUpdateReadme) {
         const newSectionContent = sectionsToUpdateReadme[sectionTitle];
-        const sectionRegex = new RegExp(`${sectionTitle}[\\s\\S]*?(?=(## [A-Za-z]+|### [A-Za-z]+|Z))`, 's'); // Fixed \Z
+        const sectionRegex = new RegExp(`${sectionTitle}[\s\S]*?(?=(## [A-Za-z]+|### [A-Za-z]+|$))`, 's');
         if (updatedReadmeContent.match(sectionRegex)) {
           updatedReadmeContent = updatedReadmeContent.replace(sectionRegex, newSectionContent);
         } else if (newSectionContent) {
@@ -262,12 +224,13 @@ Please provide a more detailed description or press Enter to keep this one:
       console.error('Error writing README.md:', error);
     }
   }
-
-  rl.close();
+  process.stdin.destroy();
 }
 
-function generateAnalysisMarkdown(analysis, description, projectStructure) {
-  return [
+function generateAnalysisMarkdown(analysis, description, projectStructure, repomixContent) {
+  const sections = [
+    '# Project Context for Gemini',
+    '',
     '## 1. Project Overview',
     `- **Project Name**: ${analysis.projectName}`,
     `- **Description**: ${description}`,
@@ -277,7 +240,9 @@ ${analysis.entryPoint}
     '',
     '## 2. AI Models Used',
     ...(analysis.modelsUsed.length > 0
-      ? analysis.modelsUsed.map(m => `- **${m.name}**: \`${m.value}\``)
+      ? analysis.modelsUsed.map(m => `- **${m.name}**: 
+${m.value}
+`)
       : ['No AI models specified.']),
     '',
     '## 3. Project Structure',
@@ -289,8 +254,7 @@ ${analysis.entryPoint}
     '',
     '## 4. Scripts',
     'The following scripts are available via ',
-`npm run <script_name>`,
-'\':',
+    '`npm run <script_name>`:',
     ...analysis.scripts.map(s => `- **${s.name}**: 
 
 ${s.command}
@@ -309,7 +273,19 @@ ${s.command}
     '',
     '## 7. Suggested TODO List',
     ...(analysis.todoList.length > 0 ? analysis.todoList.map(t => `- ${t}`) : ['No immediate TODOs suggested.'])
-  ].join('\n');
+  ];
+
+  if (repomixContent) {
+    sections.push(
+      '',
+      '## 8. Bundled Project (repomix)',
+      '```xml',
+      repomixContent,
+      '```'
+    );
+  }
+
+  return sections.join('\n');
 }
 
 function generateReadmeContent(analysis, description, projectStructure) {
@@ -337,14 +313,18 @@ function generateReadmeContent(analysis, description, projectStructure) {
     '```',
     '',
     '### Available Scripts',
-    ...analysis.scripts.map(s => `- \`${s.name}\`: 
+    ...analysis.scripts.map(s => `- 
+${s.name}
+ : 
 ${s.command}
 
 `),
     '',
     '## AI Models Used',
     ...(analysis.modelsUsed.length > 0
-      ? analysis.modelsUsed.map(m => `- **${m.name}**: \`${m.value}\``)
+      ? analysis.modelsUsed.map(m => `- **${m.name}**: 
+${m.value}
+`)
       : ['No AI models specified.']),
     '',
     '## Usage',
