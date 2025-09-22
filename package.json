@@ -1,6 +1,6 @@
 {
   "name": "@involvex/gemini-cli-context",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "updates Gemini.md files for Gemini-cli .",
   "homepage": "https://github.com/involvex/gemini-cli-context",
   "repository": {
